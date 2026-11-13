@@ -20,7 +20,9 @@
 :root{--ink:#10222c;--steel:#4b5b67;--sun:#e47c1c;--teal:#2f7799;--pale:#eef5fa;--line:#dce4ea;--mute:#7b8a96;--ok:#04855f;--bad:#c2410c}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
-body{font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--pale);display:flex;flex-direction:column;overscroll-behavior:none;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+body{font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--pale);overflow:hidden;overscroll-behavior:none;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+/* everything is in #app, which stays as the phone is held: when the browser turns the page on its side, #app is turned back (fit) */
+#app{position:fixed;left:0;top:0;width:100%;height:100%;display:flex;flex-direction:column;transform-origin:0 0;background:var(--pale)}
 header{background:var(--ink);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 18px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid var(--sun)}
 h1{font-size:17px;font-weight:600;margin:0}
 .badge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;background:rgba(255,255,255,.12);white-space:nowrap}
@@ -39,12 +41,15 @@ button{font:600 16px/1 inherit;font-family:inherit;border:1px solid var(--line);
 button:active{background:var(--pale)}
 button.main{background:var(--sun);border-color:var(--sun);color:#fff;font-size:17px}
 button.on{background:var(--ink);border-color:var(--ink);color:#fff}
-@media (orientation:landscape) and (max-height:480px){
-  #angle{font-size:44px} svg{max-height:38vh;width:auto} #hint{display:none} footer{flex-direction:row;max-width:none} main{gap:4px;padding:6px 18px}
-}
+/* little height (a screen that is wide by nature): the essentials */
+.short #angle{font-size:44px} .short svg{max-height:38%;width:auto} .short #hint{display:none} .short footer{flex-direction:row;max-width:none} .short main{gap:4px;padding:6px 18px}
+/* turned back from a page on its side, the phone's own top (its notch) is at the page's left or right */
+.r90 header{padding-top:calc(12px + env(safe-area-inset-left))} .r90 footer{padding-bottom:calc(14px + env(safe-area-inset-right))}
+.r270 header{padding-top:calc(12px + env(safe-area-inset-right))} .r270 footer{padding-bottom:calc(14px + env(safe-area-inset-left))}
 </style>
 </head>
 <body>
+<div id="app">
 <header><h1 id="title">Control remoto</h1><span class="badge warn" id="badge"><i></i><span id="state"></span></span></header>
 <main>
   <div id="angle">0,0°</div>
@@ -68,6 +73,7 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   <button class="main" id="start"></button>
   <div class="two"><button id="zero"></button><button id="flip"></button></div>
 </footer>
+</div>
 <script>
 (function () {
   'use strict';
@@ -117,6 +123,47 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   $('hint').textContent = T.hint;
   $('le').textContent = T.E;
   $('lw').textContent = T.W;
+
+  // ------------------------------------------------------------ the screen stays as the phone is held
+  // A phone that is tilted turns its screen on its side, and the page with it (the user, 2026-11-13). Two things, together: where
+  // the browser allows it (Android, full screen) the screen is locked as it is; where it does not (an iPhone), the page is turned
+  // back by as much as the browser turned it, so that it stays put on the phone. Only on a phone or a tablet: a desk screen that
+  // stands on its side is meant to.
+  var app = $('app');
+  var touch = (navigator.maxTouchPoints || 0) > 0 && window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  var forced = /^(0|90|180|270)$/.test(q.get('rot') || '') ? parseInt(q.get('rot'), 10) : -1;    // (to try it at a desk)
+  function turned() {
+    if (forced >= 0) return forced;
+    if (!touch) return 0;
+    var a = screen.orientation && typeof screen.orientation.angle === 'number' ? screen.orientation.angle : (window.orientation || 0);
+    return ((Math.round(a / 90) * 90) % 360 + 360) % 360;
+  }
+  function fit() {
+    // (the angle is how far the phone was turned anticlockwise, which is how far the browser turned the page clockwise on it)
+    var a = turned(), W = window.innerWidth, H = window.innerHeight, side = a === 90 || a === 270;
+    app.style.width = (side ? H : W) + 'px';
+    app.style.height = (side ? W : H) + 'px';
+    app.style.transform = a === 90 ? 'translate(0,' + H + 'px) rotate(-90deg)' : a === 270 ? 'translate(' + W + 'px,0) rotate(90deg)'
+      : a === 180 ? 'translate(' + W + 'px,' + H + 'px) rotate(180deg)' : 'none';
+    app.className = 'r' + a + ((side ? W : H) < 480 ? ' short' : '');
+  }
+  function refit() { fit(); setTimeout(fit, 120); setTimeout(fit, 450); }    // (a phone gives its new size a moment after it turns)
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', refit);
+  if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', refit);
+  fit();
+  // full screen and locked, from a touch: asked for again whenever it has been left
+  function lock() {
+    if (!touch) return;
+    var el = document.documentElement, ask = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!ask || document.fullscreenElement || document.webkitFullscreenElement) return;
+    try {
+      var p = ask.call(el, {navigationUI: 'hide'});
+      if (p && p.then) p.then(function () {
+        if (screen.orientation && screen.orientation.lock) screen.orientation.lock('natural').then(refit, function () {});
+      }, function () {});
+    } catch (e) {}
+  }
 
   // ------------------------------------------------------------ the tilt
   var raw = null;        // the phone's turn about its long side, from level, degrees; right side down is positive
@@ -277,6 +324,7 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   window.addEventListener('pagehide', function () { say('b'); });
 
   $('start').addEventListener('click', function () {
+    lock();
     var go = function () {
       window.addEventListener('deviceorientation', onTilt);
       started = true;
@@ -297,7 +345,7 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
     } else go();
   });
   $('slide').addEventListener('input', function () { raw = parseFloat(this.value); });
-  $('zero').addEventListener('click', function () { if (filt != null) zero = filt; });
+  $('zero').addEventListener('click', function () { if (started) lock(); if (filt != null) zero = filt; });
   $('flip').addEventListener('click', function () { flip = -flip; this.className = flip < 0 ? 'on' : ''; });
   connect();
   draw();
