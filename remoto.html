@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#10222c">
+<meta name="robots" content="noindex,nofollow">
+<title>Control remoto</title>
+<!--
+  The phone's side of the showroom's "Control remoto" mode (godot_agripv/scripts/remote.gd). One file, nothing loaded from elsewhere.
+  It has to be served under https: a browser gives a page the phone's sensors only then.
+  It is opened from the QR code on the showroom's screen, whose link ends in  #t=<code>&b=<relay>&l=<language> :
+    t  the code of that run of the showroom: the topic both meet on
+    b  the relay (an MQTT broker over a web socket), host:port/path, taken as wss://
+    l  the showroom's language (the phone's own is used when the link brings none)
+  What is after the # stays in the phone: it is not sent to whoever serves the page.
+  The phone's tilt about its long side goes to the relay some thirty times a second, as "<id>:a<hundredths of a degree>", east negative.
+-->
+<style>
+:root{--ink:#10222c;--steel:#4b5b67;--sun:#e47c1c;--teal:#2f7799;--pale:#eef5fa;--line:#dce4ea;--mute:#7b8a96;--ok:#04855f;--bad:#c2410c}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--pale);display:flex;flex-direction:column;overscroll-behavior:none;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+header{background:var(--ink);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 18px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:2px solid var(--sun)}
+h1{font-size:17px;font-weight:600;margin:0}
+.badge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:99px;background:rgba(255,255,255,.12);white-space:nowrap}
+.badge i{width:8px;height:8px;border-radius:50%;background:currentColor}
+.badge.ok{color:#7fe0bd}.badge.warn{color:#ffc98a}.badge.bad{color:#ffa98a}
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 18px;gap:8px;min-height:0}
+#angle{font:600 60px/1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;letter-spacing:-1px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#note{min-height:20px;font-size:13px;font-weight:600;color:var(--bad);text-align:center}
+svg{width:100%;max-width:440px;height:auto;flex:0 1 auto}
+#row{font:500 14px/1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--steel);font-variant-numeric:tabular-nums}
+#hint{font-size:14px;color:var(--steel);text-align:center;max-width:440px;margin:4px 0 0}
+#slide{width:100%;max-width:440px;display:none;accent-color:var(--sun)}
+footer{padding:10px 18px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;align-items:stretch;max-width:476px;width:100%;margin:0 auto}
+.two{display:flex;gap:10px}
+button{font:600 16px/1 inherit;font-family:inherit;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;padding:15px 12px;flex:1;min-height:52px}
+button:active{background:var(--pale)}
+button.main{background:var(--sun);border-color:var(--sun);color:#fff;font-size:17px}
+button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+@media (orientation:landscape) and (max-height:480px){
+  #angle{font-size:44px} svg{max-height:38vh;width:auto} #hint{display:none} footer{flex-direction:row;max-width:none} main{gap:4px;padding:6px 18px}
+}
+</style>
+</head>
+<body>
+<header><h1 id="title">Control remoto</h1><span class="badge warn" id="badge"><i></i><span id="state"></span></span></header>
+<main>
+  <div id="angle">0,0°</div>
+  <div id="note"></div>
+  <svg viewBox="0 0 320 170" role="img" aria-hidden="true">
+    <text id="lw" x="14" y="150" font-size="15" font-weight="600" fill="#7b8a96">O</text>
+    <text id="le" x="306" y="150" font-size="15" font-weight="600" fill="#7b8a96" text-anchor="end">E</text>
+    <path d="M30 158h260" stroke="#dce4ea" stroke-width="3" stroke-linecap="round"/>
+    <path id="lim1" d="M160 84L56 84" stroke="#7b8a96" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <path id="lim2" d="M160 84L264 84" stroke="#7b8a96" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <rect x="155" y="84" width="10" height="74" rx="2" fill="#4b5b67"/>
+    <g id="ghost" opacity="0"><rect x="52" y="80" width="216" height="8" rx="3" fill="none" stroke="#2f7799" stroke-width="2"/></g>
+    <g id="mod"><rect x="52" y="79" width="216" height="10" rx="3" fill="#10222c"/><rect x="52" y="79" width="216" height="3.5" rx="1.75" fill="#2f7799"/></g>
+    <circle cx="160" cy="84" r="6.5" fill="#e47c1c"/>
+  </svg>
+  <div id="row"></div>
+  <input id="slide" type="range" min="-90" max="90" step="0.1" value="0">
+  <p id="hint"></p>
+</main>
+<footer>
+  <button class="main" id="start"></button>
+  <div class="two"><button id="zero"></button><button id="flip"></button></div>
+</footer>
+<script>
+(function () {
+  'use strict';
+  var L = {
+    es: {title: 'Control remoto', start: 'Activar sensores', zero: 'Poner a cero', flip: 'Invertir sentido',
+      hint: 'Con el celular acostado y su lado largo a lo largo de la fila, al inclinarlo hacia un costado giran los trackers.',
+      conn: 'Conectando', live: 'Conectado', wait: 'Sensores sin activar', other: 'Otro celular tiene el control',
+      upright: 'Celular demasiado vertical', limit: 'Límite del tracker', nosens: 'Sin sensores de movimiento: control con el deslizador',
+      bad: 'Enlace incompleto: se abre desde el código QR del showroom', row: 'Tracker', E: 'E', W: 'O', dec: ','},
+    en: {title: 'Remote control', start: 'Enable sensors', zero: 'Set to zero', flip: 'Reverse direction',
+      hint: 'With the phone lying flat and its long side along the row, tilting it sideways turns the trackers.',
+      conn: 'Connecting', live: 'Connected', wait: 'Sensors not enabled', other: 'Another phone has control',
+      upright: 'Phone too upright', limit: 'Tracker limit', nosens: 'No motion sensors: control with the slider',
+      bad: 'Incomplete link: it opens from the showroom\'s QR code', row: 'Tracker', E: 'E', W: 'W', dec: '.'},
+    de: {title: 'Fernsteuerung', start: 'Sensoren aktivieren', zero: 'Auf null setzen', flip: 'Richtung umkehren',
+      hint: 'Liegt das Handy flach und mit der langen Seite entlang der Reihe, drehen sich die Tracker beim seitlichen Neigen.',
+      conn: 'Verbindung läuft', live: 'Verbunden', wait: 'Sensoren nicht aktiviert', other: 'Ein anderes Handy steuert',
+      upright: 'Handy zu aufrecht', limit: 'Tracker-Grenze', nosens: 'Keine Bewegungssensoren: Steuerung mit dem Schieberegler',
+      bad: 'Unvollständiger Link: Er öffnet sich über den QR-Code des Showrooms', row: 'Tracker', E: 'O', W: 'W', dec: ','},
+    it: {title: 'Controllo remoto', start: 'Attivare i sensori', zero: 'Azzerare', flip: 'Invertire il senso',
+      hint: 'Con il telefono in piano e il lato lungo lungo la fila, inclinandolo di lato ruotano i tracker.',
+      conn: 'Connessione', live: 'Connesso', wait: 'Sensori non attivi', other: 'Un altro telefono ha il controllo',
+      upright: 'Telefono troppo verticale', limit: 'Limite del tracker', nosens: 'Senza sensori di movimento: controllo con il cursore',
+      bad: 'Link incompleto: si apre dal codice QR dello showroom', row: 'Tracker', E: 'E', W: 'O', dec: ','}
+  };
+  var q = new URLSearchParams(location.hash.slice(1));
+  var nav = (navigator.language || '').slice(0, 2).toLowerCase();
+  // the showroom's language first: whoever shows it chose that one; the phone's own if the link brings none
+  var lang = L[q.get('l')] ? q.get('l') : (L[nav] ? nav : 'en');
+  var T = L[lang];
+  var code = (q.get('t') || '').replace(/[^a-z2-7]/g, '').slice(0, 32);
+  var relay = q.get('b') || '';
+  // the relay is taken as wss; a plain ws only to this same machine, which is how it is tried out
+  var url = '';
+  if (/^ws:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(relay)) url = relay;
+  else if (relay && !/^[a-z]+:\/\//i.test(relay)) url = 'wss://' + relay;
+  else if (/^wss:\/\//i.test(relay)) url = relay;
+  var LETTERS = 'abcdefghijklmnopqrstuvwxyz234567';
+  var id = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(4)), function (x) { return LETTERS[x & 31]; }).join('');
+  var $ = function (k) { return document.getElementById(k); };
+  document.documentElement.lang = lang;
+  document.title = T.title;
+  $('title').textContent = T.title;
+  $('start').textContent = T.start;
+  $('zero').textContent = T.zero;
+  $('flip').textContent = T.flip;
+  $('hint').textContent = T.hint;
+  $('le').textContent = T.E;
+  $('lw').textContent = T.W;
+
+  // ------------------------------------------------------------ the tilt
+  var raw = null;        // the phone's turn about its long side, from level, degrees; right side down is positive
+  var filt = null;
+  var zero = 0;
+  var flip = 1;
+  var out = 0;           // what is sent: east (right side down) negative, as the showroom has it
+  var started = false;
+  var sensor = false;
+  var upright = false;
+  var slider = false;
+  var limit = 50;
+  var rowDeg = null;
+  var owner = '';
+  function wrap(a) { return ((a + 540) % 360) - 180; }
+  function onTilt(e) {
+    if (e.beta == null || e.gamma == null) return;
+    sensor = true;
+    var b = e.beta * Math.PI / 180, g = e.gamma * Math.PI / 180, cb = Math.cos(b);
+    // gravity as the phone sees it: its turn about the long side is the angle between that and the screen's own "down"; with the
+    // phone standing on end there is no such turn to read
+    upright = Math.abs(cb) < 0.34;
+    if (!upright) raw = Math.atan2(cb * Math.sin(g), cb * Math.cos(g)) * 180 / Math.PI;
+  }
+  function step() {
+    if (raw != null) {
+      if (filt == null) filt = raw;
+      // still, the last tenth of a degree is the sensor's own noise: it is smoothed out; moving, the hand is followed as it is
+      var d = wrap(raw - filt);
+      filt = wrap(filt + d * Math.min(1, Math.max(0.18, Math.abs(d) / 0.8)));
+      out = -flip * wrap(filt - zero);
+    }
+  }
+  function fmt(a) {
+    var d = Math.round(a * 10) / 10;
+    var n = Math.abs(d).toFixed(1).replace('.', T.dec);
+    return d === 0 ? n + '°' : (d < 0 ? T.E : T.W) + ' ' + n + '°';
+  }
+  function draw() {
+    var shown = Math.max(-limit, Math.min(limit, out));
+    $('angle').textContent = started ? fmt(shown) : '—';
+    $('mod').setAttribute('transform', 'rotate(' + (-shown).toFixed(2) + ' 160 84)');
+    $('lim1').setAttribute('transform', 'rotate(' + limit + ' 160 84)');
+    $('lim2').setAttribute('transform', 'rotate(' + (-limit) + ' 160 84)');
+    if (rowDeg != null) {
+      $('ghost').setAttribute('opacity', '1');
+      $('ghost').setAttribute('transform', 'rotate(' + (-rowDeg).toFixed(2) + ' 160 84)');
+      $('row').textContent = T.row + '  ' + fmt(rowDeg);
+    }
+    var note = '';
+    if (!url || !code) note = T.bad;
+    else if (owner && owner !== id) note = T.other;
+    else if (started && upright && !slider) note = T.upright;
+    else if (started && Math.abs(out) > limit + 0.05) note = T.limit;
+    else if (slider) note = T.nosens;
+    $('note').textContent = note;
+    var live = phase === 3;
+    var cls = !live ? 'warn' : (started ? 'ok' : 'warn');
+    $('badge').className = 'badge ' + (!url || !code ? 'bad' : cls);
+    $('state').textContent = !live ? T.conn : (started ? T.live : T.wait);
+  }
+
+  // ------------------------------------------------------------ the relay (MQTT 3.1.1 over a web socket), by hand
+  var enc = new TextEncoder(), dec = new TextDecoder();
+  var ws = null, phase = 0, buf = new Uint8Array(0), lastSent = 0, lastOut = 999, lastPing = 0;
+  function str(s) { var b = enc.encode(s); var o = new Uint8Array(2 + b.length); o[0] = b.length >> 8; o[1] = b.length & 255; o.set(b, 2); return o; }
+  function cat(parts) {
+    var n = 0, i; for (i = 0; i < parts.length; i++) n += parts[i].length;
+    var o = new Uint8Array(n), at = 0; for (i = 0; i < parts.length; i++) { o.set(parts[i], at); at += parts[i].length; }
+    return o;
+  }
+  function pkt(kind, body) {
+    var len = [], n = body.length;
+    do { var d = n % 128; n = Math.floor(n / 128); len.push(n > 0 ? d | 128 : d); } while (n > 0);
+    return cat([new Uint8Array([kind]), new Uint8Array(len), body]);
+  }
+  function say(text) {
+    if (ws && phase === 3 && ws.readyState === 1) ws.send(pkt(0x30, cat([str('rc1/' + code + '/u'), enc.encode(id + ':' + text)])));
+  }
+  function heard(text) {
+    if (text[0] === 's') {
+      var p = text.slice(1).split(',');
+      if (p.length === 3 && /^-?\d+$/.test(p[1]) && /^\d+$/.test(p[2])) {
+        owner = p[0].slice(0, 8);
+        rowDeg = Math.max(-180, Math.min(180, parseInt(p[1], 10) / 100));
+        limit = Math.max(5, Math.min(90, parseInt(p[2], 10)));
+      }
+    } else if (text[0] === 'p' && /^\d+$/.test(text.slice(1))) {
+      say('e' + text.slice(1));
+    }
+  }
+  function parse() {
+    while (buf.length >= 2) {
+      var len = 0, mult = 1, i = 1, whole = false;
+      while (i < buf.length && i <= 4) { var d = buf[i]; len += (d & 127) * mult; mult *= 128; i++; if (!(d & 128)) { whole = true; break; } }
+      if (!whole || buf.length < i + len) return;
+      var head = buf[0], body = buf.subarray(i, i + len);
+      buf = buf.slice(i + len);
+      var kind = head >> 4;
+      if (kind === 2) {
+        if (body.length >= 2 && body[1] === 0) ws.send(pkt(0x82, cat([new Uint8Array([0, 1]), str('rc1/' + code + '/d'), new Uint8Array([0])])));
+        else ws.close();
+      } else if (kind === 9) {
+        phase = 3;
+      } else if (kind === 3 && body.length >= 2) {
+        var at = 2 + (body[0] << 8 | body[1]) + (((head >> 1) & 3) > 0 ? 2 : 0);
+        if (at <= body.length && body.length - at <= 48) heard(dec.decode(body.subarray(at)));
+      }
+    }
+  }
+  function connect() {
+    if (!url || !code) return;
+    try { ws = new WebSocket(url, 'mqtt'); } catch (e) { ws = null; setTimeout(connect, 3000); return; }
+    ws.binaryType = 'arraybuffer';
+    phase = 1;
+    buf = new Uint8Array(0);
+    var mine = ws;
+    ws.onopen = function () {
+      mine.send(pkt(0x10, cat([str('MQTT'), new Uint8Array([4, 2, 0, 30]), str('rc' + code.slice(0, 8) + id)])));
+      phase = 2;
+    };
+    ws.onmessage = function (e) {
+      buf = cat([buf, new Uint8Array(e.data)]);
+      parse();
+    };
+    ws.onclose = function () {
+      if (ws !== mine) return;
+      ws = null; phase = 0; rowDeg = null; owner = '';
+      setTimeout(connect, 2000);
+    };
+    ws.onerror = function () { try { mine.close(); } catch (e) {} };
+  }
+
+  // ------------------------------------------------------------ the page's own clock
+  setInterval(function () {
+    step();
+    var now = Date.now();
+    if (started && phase === 3) {
+      // thirty times a second while it moves; five when it is still, so that the other end knows the phone is there
+      var moved = Math.abs(out - lastOut) >= 0.02;
+      if ((moved && now - lastSent >= 30) || now - lastSent >= 200) {
+        say('a' + Math.round(Math.max(-180, Math.min(180, out)) * 100));
+        lastSent = now; lastOut = out;
+      }
+    }
+    if (ws && phase === 3 && now - lastPing > 15000) { lastPing = now; ws.send(new Uint8Array([0xC0, 0])); }
+    draw();
+  }, 16);
+
+  var lock = null;
+  function awake() {
+    if (navigator.wakeLock && document.visibilityState === 'visible') navigator.wakeLock.request('screen').then(function (l) { lock = l; }).catch(function () {});
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') { if (started) awake(); }
+    else say('b');
+  });
+  window.addEventListener('pagehide', function () { say('b'); });
+
+  $('start').addEventListener('click', function () {
+    var go = function () {
+      window.addEventListener('deviceorientation', onTilt);
+      started = true;
+      $('start').style.display = 'none';
+      awake();
+      // a phone answers at once; a desk computer never does: it gets a slider instead
+      setTimeout(function () {
+        if (!sensor) {
+          slider = true;
+          $('slide').style.display = 'block';
+          raw = 0;
+        }
+      }, 1200);
+    };
+    // (an iPhone asks its owner first, and only from a touch)
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().then(go, go);
+    } else go();
+  });
+  $('slide').addEventListener('input', function () { raw = parseFloat(this.value); });
+  $('zero').addEventListener('click', function () { if (filt != null) zero = filt; });
+  $('flip').addEventListener('click', function () { flip = -flip; this.className = flip < 0 ? 'on' : ''; });
+  connect();
+  draw();
+})();
+</script>
+</body>
+</html>
