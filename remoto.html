@@ -153,7 +153,7 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', refit);
   fit();
   // full screen and locked, from a touch: asked for again whenever it has been left
-  function lock() {
+  function holdScreen() {
     if (!touch) return;
     var el = document.documentElement, ask = el.requestFullscreen || el.webkitRequestFullscreen;
     if (!ask || document.fullscreenElement || document.webkitFullscreenElement) return;
@@ -324,7 +324,7 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   window.addEventListener('pagehide', function () { say('b'); });
 
   $('start').addEventListener('click', function () {
-    lock();
+    holdScreen();
     var go = function () {
       window.addEventListener('deviceorientation', onTilt);
       started = true;
@@ -345,7 +345,7 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
     } else go();
   });
   $('slide').addEventListener('input', function () { raw = parseFloat(this.value); });
-  $('zero').addEventListener('click', function () { if (started) lock(); if (filt != null) zero = filt; });
+  $('zero').addEventListener('click', function () { if (started) holdScreen(); if (filt != null) zero = filt; });
   $('flip').addEventListener('click', function () { flip = -flip; this.className = flip < 0 ? 'on' : ''; });
   connect();
   draw();
