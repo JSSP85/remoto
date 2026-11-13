@@ -31,7 +31,9 @@ h1{font-size:17px;font-weight:600;margin:0}
 main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 18px;gap:8px;min-height:0}
 #angle{font:600 60px/1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;letter-spacing:-1px;font-variant-numeric:tabular-nums;white-space:nowrap}
 #note{min-height:20px;font-size:13px;font-weight:600;color:var(--bad);text-align:center}
-svg{width:100%;max-width:440px;height:auto;flex:0 1 auto}
+/* the picture takes the room that is left; its size is set to fit it whole (sizeScene) */
+#stage{flex:1 1 0;min-height:120px;width:100%;display:flex;align-items:center;justify-content:center}
+#scene{display:block;width:324px;height:270px;border-radius:14px;box-shadow:0 1px 0 rgba(16,34,44,.08),0 8px 22px rgba(16,34,44,.16);background:#d3e1ea}
 #row{font:500 14px/1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--steel);font-variant-numeric:tabular-nums}
 #hint{font-size:14px;color:var(--steel);text-align:center;max-width:440px;margin:4px 0 0}
 #slide{width:100%;max-width:440px;display:none;accent-color:var(--sun)}
@@ -42,7 +44,7 @@ button:active{background:var(--pale)}
 button.main{background:var(--sun);border-color:var(--sun);color:#fff;font-size:17px}
 button.on{background:var(--ink);border-color:var(--ink);color:#fff}
 /* little height (a screen that is wide by nature): the essentials */
-.short #angle{font-size:44px} .short svg{max-height:38%;width:auto} .short #hint{display:none} .short footer{flex-direction:row;max-width:none} .short main{gap:4px;padding:6px 18px}
+.short #angle{font-size:44px} .short #hint{display:none} .short footer{flex-direction:row;max-width:none} .short main{gap:4px;padding:6px 18px}
 /* turned back from a page on its side, the phone's own top (its notch) is at the page's left or right */
 .r90 header{padding-top:calc(12px + env(safe-area-inset-left))} .r90 footer{padding-bottom:calc(14px + env(safe-area-inset-right))}
 .r270 header{padding-top:calc(12px + env(safe-area-inset-right))} .r270 footer{padding-bottom:calc(14px + env(safe-area-inset-left))}
@@ -54,17 +56,70 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
 <main>
   <div id="angle">0,0°</div>
   <div id="note"></div>
-  <svg viewBox="0 0 320 170" role="img" aria-hidden="true">
-    <text id="lw" x="14" y="150" font-size="15" font-weight="600" fill="#7b8a96">O</text>
-    <text id="le" x="306" y="150" font-size="15" font-weight="600" fill="#7b8a96" text-anchor="end">E</text>
-    <path d="M30 158h260" stroke="#dce4ea" stroke-width="3" stroke-linecap="round"/>
-    <path id="lim1" d="M160 84L56 84" stroke="#7b8a96" stroke-width="1.5" stroke-dasharray="4 5"/>
-    <path id="lim2" d="M160 84L264 84" stroke="#7b8a96" stroke-width="1.5" stroke-dasharray="4 5"/>
-    <rect x="155" y="84" width="10" height="74" rx="2" fill="#4b5b67"/>
-    <g id="ghost" opacity="0"><rect x="52" y="80" width="216" height="8" rx="3" fill="none" stroke="#2f7799" stroke-width="2"/></g>
-    <g id="mod"><rect x="52" y="79" width="216" height="10" rx="3" fill="#10222c"/><rect x="52" y="79" width="216" height="3.5" rx="1.75" fill="#2f7799"/></g>
-    <circle cx="160" cy="84" r="6.5" fill="#e47c1c"/>
-  </svg>
+  <!-- The AgriPV tracker seen along its row. Its head is to scale (92 px to the metre: the module 1.752 m across on its rails,
+       the torque tube under the axis, the saddle, the linear actuator between its two pins); the post is drawn shorter than it is
+       (the user, 2026-11-13: "haz el poste mas bajo"), so that the head reads large on a phone. The axis is at (180, 108).
+       What turns is in #mod; what the showroom's rows are really doing, in #ghost. With "reverse direction" the row is seen from
+       its other end: what is not the same on both sides (#fixed, #modm, the actuator) is mirrored, and east and west change places.
+       The scale of angles (#arc, #ticks, #deg) is drawn by the script, to the rows' own limit. -->
+  <div id="stage"><svg id="scene" viewBox="0 0 360 300" role="img" aria-hidden="true">
+    <defs>
+      <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fbdd3"/><stop offset=".62" stop-color="#d3e1ea"/><stop offset="1" stop-color="#e9eff2"/></linearGradient>
+      <radialGradient id="gSun"><stop offset="0" stop-color="#fffdf3"/><stop offset=".14" stop-color="#fff6d8" stop-opacity=".95"/><stop offset=".4" stop-color="#fff1c4" stop-opacity=".38"/><stop offset="1" stop-color="#fff1c4" stop-opacity="0"/></radialGradient>
+      <radialGradient id="gCloud"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      <linearGradient id="gField" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a4b08a"/><stop offset=".35" stop-color="#8b9c6c"/><stop offset="1" stop-color="#6c8050"/></linearGradient>
+      <linearGradient id="gRow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f9468"/><stop offset="1" stop-color="#4a6238"/></linearGradient>
+      <linearGradient id="gSteel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a959d"/><stop offset=".42" stop-color="#d6dce0"/><stop offset=".7" stop-color="#b4bdc3"/><stop offset="1" stop-color="#87929a"/></linearGradient>
+      <linearGradient id="gSteelH" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d3d9dd"/><stop offset="1" stop-color="#8d979f"/></linearGradient>
+      <linearGradient id="gGlass" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#27425c"/><stop offset=".35" stop-color="#5d86ab"/><stop offset=".6" stop-color="#34597c"/><stop offset="1" stop-color="#223a52"/></linearGradient>
+      <radialGradient id="gShade"><stop offset="0" stop-color="#1c2a1a" stop-opacity=".42"/><stop offset="1" stop-color="#1c2a1a" stop-opacity="0"/></radialGradient>
+    </defs>
+    <rect width="360" height="300" fill="url(#gSky)"/>
+    <circle cx="302" cy="44" r="78" fill="url(#gSun)"/>
+    <ellipse cx="92" cy="56" rx="84" ry="9" fill="url(#gCloud)"/>
+    <ellipse cx="236" cy="92" rx="96" ry="7" fill="url(#gCloud)"/>
+    <ellipse cx="48" cy="104" rx="60" ry="5" fill="url(#gCloud)"/>
+    <path d="M0 224C50 211 110 215 160 221C210 209 280 207 360 217V242H0Z" fill="#bccac8"/>
+    <path d="M0 231q6-9 14 0q5-6 12 0q8-11 16 0q5-7 12 0q8-9 17 0q6-12 14 0q7-7 15 0q8-10 17 0q5-6 12 0q8-9 16 0q6-11 14 0q7-7 15 0q8-10 17 0q5-6 12 0q8-9 16 0q6-12 14 0q7-7 15 0q8-10 17 0q5-6 12 0q8-9 16 0q6-11 14 0q7-7 15 0q8-9 17 0q6-7 14 0q5-6 10 0V242H0Z" fill="#88a08d"/>
+    <rect y="233" width="360" height="67" fill="url(#gField)"/>
+    <!-- the lane the row stands in, and the crop's rows beside it, going away -->
+    <path d="M180 233L158 300H202Z" fill="#9a8769" opacity=".5"/>
+    <g fill="url(#gRow)"><path d="M180 233L-96 300H-30Z"/><path d="M180 233L6 300H62Z"/><path d="M180 233L92 300H138Z"/><path d="M180 233L222 300H268Z"/><path d="M180 233L298 300H354Z"/><path d="M180 233L390 300H456Z"/></g>
+    <g fill="#9db183" opacity=".35"><path d="M180 233L6 300H18Z"/><path d="M180 233L92 300H102Z"/><path d="M180 233L222 300H232Z"/><path d="M180 233L298 300H310Z"/></g>
+    <ellipse id="shade" cx="166" cy="262" rx="92" ry="7" fill="url(#gShade)"/>
+    <path id="arc" fill="none" stroke="#10222c" stroke-opacity=".5" stroke-width="1"/>
+    <path id="ticks" fill="none" stroke="#10222c" stroke-opacity=".6" stroke-width="1.2" stroke-linecap="round"/>
+    <text id="deg" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="9.5" fill="#10222c" fill-opacity=".7"></text>
+    <text id="lw" x="77" y="112" font-size="12.5" font-weight="700" fill="#10222c" fill-opacity=".8" text-anchor="end">O</text>
+    <text id="le" x="283" y="112" font-size="12.5" font-weight="700" fill="#10222c" fill-opacity=".8">E</text>
+    <g id="ghost" opacity="0"><rect x="99.4" y="101" width="161.2" height="5" rx=".9" fill="none" stroke="#2f7799" stroke-width="1.3" stroke-dasharray="5 3"/></g>
+    <g id="fixed">
+      <ellipse cx="181" cy="262" rx="16" ry="3.2" fill="#263322" opacity=".4"/>
+      <rect x="173.9" y="132" width="14.3" height="131" fill="url(#gSteel)" stroke="#606b74" stroke-width=".6"/>
+      <rect x="173.9" y="132" width="2.8" height="131" fill="#10222c" opacity=".14"/>
+      <rect x="185.6" y="132" width="2.6" height="131" fill="#10222c" opacity=".1"/>
+      <rect x="176" y="105" width="10.4" height="47" rx="1.5" fill="#7d8890" stroke="#59646c" stroke-width=".6"/>
+      <circle cx="181.2" cy="138.5" r="1.4" fill="#454f57"/><circle cx="181.2" cy="146.5" r="1.4" fill="#454f57"/>
+      <rect x="164.2" y="185.5" width="9.8" height="12" rx="1.5" fill="#7d8890" stroke="#59646c" stroke-width=".6"/>
+    </g>
+    <line id="actRod" x1="169.1" y1="191.5" x2="155.9" y2="108.2" stroke="#dde2e6" stroke-width="3.6" stroke-linecap="round"/>
+    <line id="actBody" x1="169.1" y1="191.5" x2="161.7" y2="144.8" stroke="#3d4850" stroke-width="9" stroke-linecap="round"/>
+    <line id="actShine" x1="169.1" y1="191.5" x2="161.7" y2="144.8" stroke="#8a959d" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
+    <circle id="actLow" cx="169.1" cy="191.5" r="3.2" fill="#262f37" stroke="#c3cacf" stroke-width=".8"/>
+    <g id="mod"><g id="modm">
+      <line x1="180" y1="116" x2="155.9" y2="108.2" stroke="#7d8890" stroke-width="5.4" stroke-linecap="round"/>
+      <rect x="174.6" y="100.6" width="10.8" height="22.4" rx="2" fill="#8f99a1" stroke="#59646c" stroke-width=".6"/>
+      <rect x="175.3" y="109.9" width="9.2" height="12.9" rx="1.3" fill="#d0d6da" stroke="#59646c" stroke-width=".8"/>
+      <rect x="177" y="111.6" width="5.8" height="9.5" rx=".8" fill="#4c575f"/>
+      <rect x="150" y="109.9" width="9" height="3.4" rx=".6" fill="#222c35"/>
+      <rect x="99.5" y="105.8" width="161" height="4.1" rx=".8" fill="url(#gSteelH)" stroke="#646f78" stroke-width=".5"/>
+      <rect x="99.4" y="101" width="161.2" height="5" rx=".9" fill="#1b2630"/>
+      <rect x="101.6" y="101.5" width="156.8" height="1.6" fill="url(#gGlass)"/>
+      <rect x="99.4" y="101" width="2.2" height="5" rx=".6" fill="#aab3ba"/><rect x="258.4" y="101" width="2.2" height="5" rx=".6" fill="#aab3ba"/>
+      <circle cx="155.9" cy="108.2" r="3.2" fill="#262f37" stroke="#c3cacf" stroke-width=".8"/>
+    </g></g>
+    <g stroke="#10222c" stroke-opacity=".75" stroke-width=".9" fill="none"><circle cx="180" cy="108" r="2.2" fill="#f4f6f7"/><path d="M174.5 108h11M180 102.5v11"/></g>
+  </svg></div>
   <div id="row"></div>
   <input id="slide" type="range" min="-90" max="90" step="0.1" value="0">
   <p id="hint"></p>
@@ -121,8 +176,6 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   $('zero').textContent = T.zero;
   $('flip').textContent = T.flip;
   $('hint').textContent = T.hint;
-  $('le').textContent = T.E;
-  $('lw').textContent = T.W;
 
   // ------------------------------------------------------------ the screen stays as the phone is held
   // A phone that is tilted turns its screen on its side, and the page with it (the user, 2026-11-13). Two things, together: where
@@ -146,7 +199,14 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
     app.style.transform = a === 90 ? 'translate(0,' + H + 'px) rotate(-90deg)' : a === 270 ? 'translate(' + W + 'px,0) rotate(90deg)'
       : a === 180 ? 'translate(' + W + 'px,' + H + 'px) rotate(180deg)' : 'none';
     app.className = 'r' + a + ((side ? W : H) < 480 ? ' short' : '');
+    sizeScene();
   }
+  // the picture as large as its room allows, whole (360 x 300, and no more than 440 across)
+  function sizeScene() {
+    var st = $('stage'), k = Math.min(st.clientWidth / 360, st.clientHeight / 300, 440 / 360);
+    if (k > 0.05) { $('scene').style.width = Math.floor(360 * k) + 'px'; $('scene').style.height = Math.floor(300 * k) + 'px'; }
+  }
+  if (window.ResizeObserver) new ResizeObserver(sizeScene).observe($('stage'));
   function refit() { fit(); setTimeout(fit, 120); setTimeout(fit, 450); }    // (a phone gives its new size a moment after it turns)
   window.addEventListener('resize', refit);
   window.addEventListener('orientationchange', refit);
@@ -176,6 +236,7 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   var upright = false;
   var slider = false;
   var limit = 50;
+  var arcOf = -1;       // the limit the scale of angles was last drawn to
   var rowDeg = null;
   var owner = '';
   function wrap(a) { return ((a + 540) % 360) - 180; }
@@ -205,12 +266,48 @@ button.on{background:var(--ink);border-color:var(--ink);color:#fff}
   function draw() {
     var shown = Math.max(-limit, Math.min(limit, out));
     $('angle').textContent = started ? fmt(shown) : '—';
-    $('mod').setAttribute('transform', 'rotate(' + (-shown).toFixed(2) + ' 160 84)');
-    $('lim1').setAttribute('transform', 'rotate(' + limit + ' 160 84)');
-    $('lim2').setAttribute('transform', 'rotate(' + (-limit) + ' 160 84)');
+    // The picture turns as the phone does, whichever way the rows are told to go: with the direction reversed the row is seen
+    // from its other end, east on the left (the user, 2026-11-13: the picture stayed as it was and turned the other way).
+    var rot = -shown * flip, r = rot * Math.PI / 180;
+    var mirror = flip < 0 ? 'translate(360 0) scale(-1 1)' : '';
+    $('mod').setAttribute('transform', 'rotate(' + rot.toFixed(2) + ' 180 108)');
+    $('modm').setAttribute('transform', mirror);
+    $('fixed').setAttribute('transform', mirror);
+    $('le').textContent = flip > 0 ? T.E : T.W;
+    $('lw').textContent = flip > 0 ? T.W : T.E;
+    // the scale of angles, as on a drawing: an arc each side as far as the rows go, a mark at level and one at each end
+    if (limit !== arcOf) {
+      arcOf = limit;
+      var L = limit * Math.PI / 180, R = 93, ac = '', tk = '', sides = [1, -1], marks = [-L, 0, L];
+      for (var i = 0; i < 2; i++) {
+        var sg = sides[i];
+        ac += 'M' + (180 + sg * R * Math.cos(L)).toFixed(1) + ' ' + (108 - R * Math.sin(L)).toFixed(1) + 'A' + R + ' ' + R + ' 0 0 ' + (sg > 0 ? 1 : 0) + ' ' +
+          (180 + sg * R * Math.cos(L)).toFixed(1) + ' ' + (108 + R * Math.sin(L)).toFixed(1);
+        for (var j = 0; j < 3; j++) {
+          tk += 'M' + (180 + sg * 89 * Math.cos(marks[j])).toFixed(1) + ' ' + (108 + 89 * Math.sin(marks[j])).toFixed(1) +
+            'L' + (180 + sg * 98 * Math.cos(marks[j])).toFixed(1) + ' ' + (108 + 98 * Math.sin(marks[j])).toFixed(1);
+        }
+      }
+      $('arc').setAttribute('d', ac);
+      $('ticks').setAttribute('d', tk);
+      $('deg').setAttribute('x', (180 + 102 * Math.cos(L)).toFixed(1));
+      $('deg').setAttribute('y', (108 - 102 * Math.sin(L) + 2).toFixed(1));
+      $('deg').textContent = limit + '°';
+    }
+    // the actuator, from its pin on the post to the arm's, where that is now
+    var lx = 180 - 10.9 * flip, ly = 191.5, ax = -24.1 * flip, ay = 0.2;
+    var ux = 180 + ax * Math.cos(r) - ay * Math.sin(r), uy = 108 + ax * Math.sin(r) + ay * Math.cos(r);
+    var bx = (lx + (ux - lx) * 0.56).toFixed(1), by = (ly + (uy - ly) * 0.56).toFixed(1);
+    $('actRod').setAttribute('x1', lx); $('actRod').setAttribute('y1', ly); $('actRod').setAttribute('x2', ux.toFixed(1)); $('actRod').setAttribute('y2', uy.toFixed(1));
+    $('actBody').setAttribute('x1', lx); $('actBody').setAttribute('y1', ly); $('actBody').setAttribute('x2', bx); $('actBody').setAttribute('y2', by);
+    $('actShine').setAttribute('x1', lx - 2 * flip); $('actShine').setAttribute('y1', ly); $('actShine').setAttribute('x2', bx - 2 * flip); $('actShine').setAttribute('y2', by);
+    $('actLow').setAttribute('cx', lx);
+    // its shadow on the ground, the sun where it is drawn
+    $('shade').setAttribute('rx', (16 + 80 * Math.abs(Math.cos(r))).toFixed(1));
+    $('shade').setAttribute('cx', (166 - 20 * Math.sin(r)).toFixed(1));
     if (rowDeg != null) {
       $('ghost').setAttribute('opacity', '1');
-      $('ghost').setAttribute('transform', 'rotate(' + (-rowDeg).toFixed(2) + ' 160 84)');
+      $('ghost').setAttribute('transform', 'rotate(' + (-rowDeg * flip).toFixed(2) + ' 180 108)');
       $('row').textContent = T.row + '  ' + fmt(rowDeg);
     }
     var note = '';
